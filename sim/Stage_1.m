@@ -1,5 +1,4 @@
-clear,clc, close all
-format short
+clear, clc, close all
 %Inputs
 T = 1939.3; %Thrust in Newtons
 m = 6.369; %mass in kg
@@ -15,13 +14,11 @@ h_handcalc = 734.024; %hand-calculated height, m
 v = zeros(1, N+1);
 h = zeros(1, N+1);
 t = t_placeholder.*dt; %time array in seconds
-
 %for loop with Eulers Method added
 for k=(2:N+1)
     v(k) = v(k-1) + a * dt;
     h(k) = h(k-1) + v(k-1) * dt;
 end
-
 %% creating figures
 %velocity over time
 figure
@@ -37,12 +34,9 @@ ylabel ('Height (m)')
 xlabel ('Time (s)')
 title ('Height over Time')
 grid on
-
-
 %% Print out final values
-
 fprintf(['Final velocity is %.4f m/s. My paper calculations gave %.4f m/s, which MATLAB agrees to the ' ...
-'thousandths place.\n'], v(end), v_handcalc) 
+    'thousandths place.\n'], v(end), v_handcalc)
 fprintf(['Final Height is %.4f m. My paper calculations gave %.4f m, a difference of %.4f.\n' ...
-'I believe this is due to Eulers Method increasing velocity with each step, and my hand calculation\n' ...
-'is using the true values; no approximation using Eulers method.\n'], h(end), h_handcalc, h_handcalc - h(end))
+    'I believe this is due to Eulers Method increasing velocity with each step, and my hand calculation\n' ...
+    'is using the true values; no approximation using Eulers method.\n'], h(end), h_handcalc, h_handcalc - h(end))
