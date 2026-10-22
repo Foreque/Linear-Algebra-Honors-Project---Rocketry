@@ -9,3 +9,7 @@ slprj/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# MATLAB Drive sync files
+.MATLABDriveTag
+Icon?
