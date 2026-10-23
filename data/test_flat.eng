@@ -1,0 +1,6 @@
+; FAKE flat curve for testing readEng / Stage 4 — not a real motor
+FAKE-FLAT 75 500 P 1.000 2.000 TEST
+0.001 1939.3
+2.232 1939.3
+2.233 0.0
+;
