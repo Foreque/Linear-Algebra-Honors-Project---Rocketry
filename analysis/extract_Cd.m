@@ -1,5 +1,6 @@
 clear, clc, close all;
 load(fullfile(fileparts(mfilename('fullpath')), '..', 'data', 'stage5_out.mat'));
+set(0, 'DefaultFigureVisible', 'on'); % TURNS OFF/ON figures while coding
 
 t = t(1:end-1);
 v = v(1:end-1);
@@ -63,11 +64,73 @@ fprintf('max |A''r| = %.3e\n', max(abs(A'*residual)));
 fprintf('max |error| = %.4f %%\n', max(abs(err_pct)));
 
 % Plotting
-set(0, 'DefaultFigureVisible', 'on');
 Mf = 0.80:0.001:1.20;
 figure
-plot(Mf, interp1(M_tab, Cd_tab, Mf, 'pchip'), 'k-', LineWidth = 1.5); hold on
+plot(Mf, interp1(M_tab, Cd_tab, Mf, 'pchip'), 'w-', LineWidth = 1.5); hold on
 plot(nodes, c_qr, 'ro-', LineWidth = 1)
 xlabel('Mach'); ylabel('C_d'); grid on
 legend('Truth (placeholder)', 'Recovered (least squares)', Location = 'northwest')
 title('Cd(M) recovery, noise-free')
+
+%% Noise, Weighted Least Squares, Covariance
+% used ai to fetch information in ADXL357 datasheet, and also the equation
+% ADXL357 datasheet Rev. A, Table 2, ±40 g
+g0 = 9.80665; % force of gravity
+nd_357 = 90e-6; % noise density at +_40gs
+b_w_357 = 125; % bandwidth for Low Pass Filter Corner at 500 hz output data rate
+lsb_357 = 78e-6; % Least Significant Bit (LSB); smallest measurable step the sensor can read
+% total measurement noise standard deviation for an accelerometer
+sigma_357 = g0 * sqrt((nd_357)^2*b_w_357+lsb_357^2/12);
+
+% recreating the noisy measurements
+rng(1); % fixes random seed, so I get the same "random" noise on every run
+sig = sigma_357*ones(Ns,1); % 1500x1 column with one sigma per sample
+b_n = b + sig .* randn(Ns, 1); % adding noise to b
+
+% Weighted Least Squares
+A_w  = A ./ sig; % divides every row by the standard deviation. Matlab stretches sig horizontally so that every row is divided
+b_w  = b_n ./ sig; % divides every row to the noise vector b_n
+c_w = A_w \ b_w; % solves for WLS using by solving linear least-squares via QR decomp
+c_o = A \ b_n; % solves for unscaled OLS on the same data as comparison
+% Computing the largets absolute difference between WLS coefficient and OLS
+% coefficients, then print 
+fprintf('max |WLS - OLS| = %.3e\n', max(abs(c_w - c_o)));
+
+% Covariance and Error Bars
+[~, R] = qr(A_w, "econ"); % Performing an QR decomp on weighted matrix A_w 
+Rinv = R \ eye(n); % computing the inverse of the upper triangular matrix
+Cov = Rinv*Rinv'; % solves the covariance matrix
+se = sqrt(diag(Cov)); % standard error; takes the square root of the diagonal of the covariance matrix
+                      % diagonal entries represent the variance of each
+                      % individual parameter
+% Computes the relative difference between the QR-derived covariance matrix
+% and the textbook inverse using matrix norms
+fprintf('rel. diff Cov vs inv(A_w''A_w) = %.3e\n', ...
+    norm(Cov - inv(A_w'*A_w))/norm(Cov)); 
+
+% Diagnostics 
+% c_qr is the noise free solve. Subtracting it from the WLS shows how much
+% error the noise caused
+err_noise = c_w - c_qr; 
+% Divides each paramaters noise error by its estimated standard error
+z = err_noise ./ se;
+% Computes Weighted Residuals, differnece between measured data and the models
+% predictions
+r_w = b_w - A_w*c_w;
+% Average squared weighted residual. 
+chi2_nu = (r_w'*r_w)/(Ns - n);
+
+fprintf('max se/Cd = %.4f %%\n', max(se./Cd_true(:))*100);
+fprintf('max |z| = %.2f\n', max(abs(z)));
+fprintf('chi2/nu = %.1f\n', chi2_nu);
+fprintf('max |total error| = %.4f %%\n', max(abs((c_w' - Cd_true)./Cd_true))*100);
+
+% Plot
+figure
+errorbar(nodes(:), 100*err_noise./Cd_true(:), 100*1.96*se./Cd_true(:), 'wo'); 
+yline(0, 'k--');
+xlabel('Mach'); 
+ylabel('Noise-only error (% of C_d)'); 
+title('Noise error vs. predicted 95% interval (ADXL357)')
+hold on
+grid on
